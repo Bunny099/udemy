@@ -38,9 +38,29 @@ app.post("/register", async (req, res) => {
         }
         return res.status(201).json({ data:response ,message: "Register success!"})
     } catch (e) {
-        return res.status(500).json({ success: false, message: "Server error!" })
+        return res.status(500).json({message: "Server error!" })
     }
 
 })
+app.post("/login", async (req, res) => {
+    try {
+        const { email, password, role } = req.body;
+        if (!email || !password || !role) {
+            return res.status(400).json({message: "Field missing!" })
+        }
 
+        let existingUser = await prismaDb.user.findFirst({ where: { email, role } });
+        if (!existingUser) {
+            return res.status(404).json({ message: "Not found!" })
+        }
+        let isPassValid = await bcrypt.compare(password, existingUser?.password as string);
+        if (!isPassValid) {
+            return res.status(400).json({message: "Password invalid!" })
+        }
+        let token = jwt.sign({ id: existingUser?.id }, AUTH_SECRET);
+        return res.status(200).json({ data:token, message: "Login success!"})
+    } catch (e) {
+        return res.status(500).json({message: "Server error!" })
+    }
+})
 app.listen(3000)
