@@ -323,5 +323,8 @@ app.delete("/instructor/:lessonId/lesson", authMiddleware, async (req, res) => {
 })
 
 //student end-points
+app.post("/student/:courseId/enroll",authMiddleware,async(req,res)=>{
+    //student allow to enroll publish courses and after that have access to lessons!
+})
 
 app.listen(3000)
