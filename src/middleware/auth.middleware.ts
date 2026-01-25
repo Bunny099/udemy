@@ -18,7 +18,7 @@ export const authMiddleware = async (req: Request, res: Response, next: NextFunc
         if (!decoded) {
             return res.status(400).json({ message: "Token verifaction failed" })
         }
-        (req as any).user = decoded;
+        (req as any).user = decoded;   
         next()
     } catch (e) {
         return res.status(500).json({ message: "server error in auth!" })
