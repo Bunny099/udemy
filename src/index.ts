@@ -314,5 +314,111 @@ app.delete("/instructor/lesson", authMiddleware, async (req, res) => {
     }
 })
 
+//student end-points
+app.post("/student/course/enroll", authMiddleware, async (req, res) => {
+    //student allow to enroll publish courses and after that have access to lessons!
+    try {
+        const { courseId } = req.body;
+        const user = (req as any).user;
+        let response;
+        if (user.role !== "Student") {
+            return res.status(403).json({ message: "Not auhorised!" })
+        }
+        if (!courseId) {
+            return res.status(400).json({ message: "Field missing!" })
+        }
+        const iscourseExist = await prismaDb.course.findFirst({ where: { id: courseId, course_status: "Publish" } });
+        if (!iscourseExist) {
+            return res.status(404).json({ message: "Not found!" })
+        }
+        let isenrolmentExist = await prismaDb.enrollment.findFirst({ where: { studentId: user.id, courseId } });
+        if (isenrolmentExist) {
+            return res.status(200).json({ message: "success!" })
+        }
+        if (iscourseExist.course_status === "Publish" && !isenrolmentExist) {
+            response = await prismaDb.enrollment.create({ data: { studentId: user.id, courseId } })
+        }
+        if (!response) {
+            return res.status(401).json({ message: "Failed to enrrol course!" })
+        }
+        return res.status(201).json({ response, message: "Enrollment success!" })
+    } catch (e) {
+        return res.status(500).json({ message: "Server error!" })
+    }
 
+})
+
+app.get("/student/course/:courseId/lesson", authMiddleware, async (req, res) => {
+    try {
+        const { courseId, } = req.params;
+        const user = (req as any).user;
+        const studentId = user.id;
+        let response;
+        if (user.role !== "Student") {
+            return res.status(403).json({ message: "Not auhorised!" })
+        }
+        if (!courseId || !studentId) {
+            return res.status(400).json({ message: "Field missing!" })
+        }
+
+        const iscourseExist = await prismaDb.course.findFirst({ where: { id: courseId as string, course_status: "Publish" } });
+        if (!iscourseExist) {
+            return res.status(404).json({ message: "Course not found!" })
+        }
+        const isenrolmentExist = await prismaDb.enrollment.findFirst({ where: { studentId, courseId: courseId as string } })
+        if (!isenrolmentExist) {
+            return res.status(404).json({ message: "No enrollment found!" })
+        }
+        if (iscourseExist.course_status === "Publish" && isenrolmentExist) {
+            response = await prismaDb.lesson.findMany({ where: { courseId: courseId as string } })
+        }
+        if (!response) {
+            return res.status(403).json({ message: "Not found!" })
+        }
+        return res.status(200).json({ response, message: "Lessons success!" })
+    } catch (e) {
+        return res.status(500).json({ message: "Server error!" })
+    }
+})
+
+app.post("/student/coures/lesson/progress", authMiddleware, async (req, res) => {
+    try {
+        const { lessonId, courseId } = req.body;
+        const user = (req as any).user;
+        const studentId = user.id;
+        let response;
+        if (user.role !== "Student") {
+            return res.status(403).json({ message: "Not auhorised!" })
+        }
+        if (!courseId || !studentId || !lessonId) {
+            return res.status(400).json({ message: "Field missing!" })
+        }
+
+        const iscourseExist = await prismaDb.course.findFirst({ where: { id: courseId, course_status: "Publish" } });
+        if (!iscourseExist) {
+            return res.status(404).json({ message: "Course not found!" })
+        }
+        const isenrolmentExist = await prismaDb.enrollment.findFirst({ where: { studentId, courseId } })
+        if (!isenrolmentExist) {
+            return res.status(404).json({ message: "No enrollment found!" })
+        }
+        let islessonExist = await prismaDb.lesson.findFirst({ where: { id: lessonId, courseId } });
+        if (!islessonExist) {
+            return res.status(404).json({ message: "Lesson not found!" })
+        }
+        let isprogressExist = await prismaDb.progress.findUnique({ where: { ProgressId: { lessonId, studentId } } })
+        if (isprogressExist?.status === "COMPLETED") {
+            return res.status(200).json({ message: "Success!" })
+        }
+        response = await prismaDb.progress.create({ data: { status: "COMPLETED", student: { connect: { id: studentId } }, lesson: { connect: { id: lessonId } } } })
+        if (!response) {
+            return res.status(403).json({ message: "progress failed!" })
+        }
+        return res.status(200).json({ message: "Lesson completed!" })
+    } catch (e) {
+        return res.status(500).json({ message: "Server error" })
+    }
+
+
+})
 app.listen(3000)
