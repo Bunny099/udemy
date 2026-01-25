@@ -6,6 +6,7 @@ import { prismaDb } from "./lib/db.js";
 import { authMiddleware } from "./middleware/auth.middleware.js";
 
 
+
 const app = express();
 
 app.use(cors());
@@ -19,28 +20,29 @@ app.post("/register", async (req, res) => {
         if (!name || !email || !password || !role) {
             return res.status(400).json({ message: "Field missing!" })
         }
-        if (role !== "Instructor" || role !== "Student") {
-            return res.status(400).json({ message: "role can't exist out of scope!" })
-        }
-        let existingMail = await prismaDb.user.findFirst({ where: { email } });
-        if (existingMail) {
-            return res.status(409).json({ message: "User exist!" })
-        }
-        const hassPass = await bcrypt.hash(password, 3);
-        if (!hassPass) {
-            return res.status(500).json({ message: "Service error!" })
-        }
-
-        let response = await prismaDb.user.create({
-            data: {
-                name: name, email: email, role: role, password: hassPass
+        if (role === "Instructor" || role === "Student") {
+            let existingMail = await prismaDb.user.findFirst({ where: { email } });
+            if (existingMail) {
+                return res.status(409).json({ message: "User exist!" })
             }
-        })
-       
-        if (!response) {
-            return res.status(400).json({ message: "Db failed!" })
+            const hassPass = await bcrypt.hash(password, 3);
+            if (!hassPass) {
+                return res.status(500).json({ message: "Service error!" })
+            }
+
+            let response = await prismaDb.user.create({
+                data: {
+                    name: name, email: email, role: role, password: hassPass
+                }
+            })
+
+            if (!response) {
+                return res.status(400).json({ message: "Db failed!" })
+            }
+            return res.status(201).json({ data: response, message: "Register success!" })
         }
-        return res.status(201).json({ data: response, message: "Register success!" })
+        return res.status(400).json({ message: "Invalid role" })
+
     } catch (e) {
         return res.status(500).json({ message: "Server error!" })
     }
@@ -52,20 +54,20 @@ app.post("/login", async (req, res) => {
         if (!email || !password || !role) {
             return res.status(400).json({ message: "Field missing!" })
         }
-        if (role !== "Instructor" || role !== "Student") {
-            return res.status(400).json({ message: "role can't exist out of scope!" })
+        if (role === "Instructor" || role === "Student") {
+            let existingUser = await prismaDb.user.findFirst({ where: { email, role } });
+            if (!existingUser) {
+                return res.status(40).json({ message: "Not found!" })
+            }
+            let isPassValid = await bcrypt.compare(password, existingUser?.password as string);
+            if (!isPassValid) {
+                return res.status(400).json({ message: "Password invalid!" })
+            }
+            let token = jwt.sign({ id: existingUser?.id, role: existingUser?.role }, AUTH_SECRET);
+            return res.status(200).json({ data: token, message: "Login success!" })
         }
+        return res.status(400).json({ message: "Invalid role!" })
 
-        let existingUser = await prismaDb.user.findFirst({ where: { email, role } });
-        if (!existingUser) {
-            return res.status(401).json({ message: "Not found!" })
-        }
-        let isPassValid = await bcrypt.compare(password, existingUser?.password as string);
-        if (!isPassValid) {
-            return res.status(400).json({ message: "Password invalid!" })
-        }
-        let token = jwt.sign({ id: existingUser?.id, role: existingUser?.role }, AUTH_SECRET);
-        return res.status(200).json({ data: token, message: "Login success!" })
     } catch (e) {
         return res.status(500).json({ message: "Server error!" })
     }
@@ -81,7 +83,7 @@ app.get("/instructor/course", authMiddleware, async (req, res) => {
     try {
         const user = (req as any).user;
         if (user.role !== "Instructor") {
-            return res.status(400).json({ message: "Not authorize!" })
+            return res.status(401).json({ message: "Not authorize!" })
         }
         let response = await prismaDb.course.findMany({ where: { instructorId: user.id, course_status: "Publish" } });
         if (!response) {
@@ -98,9 +100,7 @@ app.post("/instructor/course/draft", authMiddleware, async (req, res) => {
         const { name, status } = req.body;
         const user = (req as any).user;
         let course;
-        if (user.role !== "Instructor") {
-            return res.status(401).json({ message: "Not authorize!" })
-        }
+
         if (!name || !status) {
             return res.status(400).json({ message: "Can't create course!" })
         }
@@ -122,9 +122,11 @@ app.post("/instructor/course/publish", authMiddleware, async (req, res) => {
         let user = (req as any).user;
         let courseId = req.body;
         let response;
-        if (courseId || !user && user.role !== "Instructor") {
-            return res.status(400).json({ message: "not authorize!" })
+
+        if (!courseId ) {
+            return res.status(400).json({ message: "Field missing!" })
         }
+
         let course = await prismaDb.course.findFirst({ where: { id: courseId, instructorId: user.id, course_status: "Draft" }, include: { lesson: true } });
         if (!course) {
             return res.status(401).json({ message: "Can't find course" })
@@ -146,22 +148,20 @@ app.post("/instructor/course/publish", authMiddleware, async (req, res) => {
     }
 
 })
-app.patch("/instructor/course/:courseId/", authMiddleware, async (req, res) => {
+app.patch("/instructor/course/", authMiddleware, async (req, res) => {
     try {
-        const { courseId } = req.params;
+        const { courseId } = req.body;
         const { name } = req.body;
         const user = (req as any).user;
-        if (user.role !== "Instructor") {
-            return res.status(401).json("Not authorize!")
-        }
+
         if (!courseId || !name) {
             return res.status(400).json({ message: "Field is missing!" })
         }
-        let iscourseExist = await prismaDb.course.findFirst({ where: { id: courseId as string, instructorId: user.id } });
+        let iscourseExist = await prismaDb.course.findFirst({ where: { id: courseId, instructorId: user.id } });
         if (!iscourseExist) {
             return res.status(404).json({ message: "No course found!" })
         }
-        let response = await prismaDb.course.update({ where: { id: courseId as string }, data: { name } });
+        let response = await prismaDb.course.update({ where: { id: courseId }, data: { name } });
         if (!response) {
             return res.status(400).json({ message: "updated failed!" })
         }
@@ -170,24 +170,22 @@ app.patch("/instructor/course/:courseId/", authMiddleware, async (req, res) => {
         return res.status(500).json({ message: "Server error!" })
     }
 })
-app.delete("/instructor/course/:courseId", authMiddleware, async (req, res) => {
+app.delete("/instructor/course/", authMiddleware, async (req, res) => {
     try {
-        const { courseId } = req.params;
+        const { courseId } = req.body;
         const user = (req as any).user;
+
         if (!courseId) {
             return res.status(400).json({ message: "Field missing!" })
         }
-        if (user.role !== "Instructor") {
-            return res.status(401).json({ message: "Not authorize!" })
-        }
-        let iscourseExist = await prismaDb.course.findFirst({ where: { id: courseId as string, instructorId: user.id, course_status: "Draft" } });
+        let iscourseExist = await prismaDb.course.findFirst({ where: { id: courseId, instructorId: user.id, course_status: "Draft" } });
         if (!iscourseExist) {
             return res.status(404).json({ message: "Course not found!" })
         }
         if (iscourseExist.course_status === "Publish") {
             return res.status(409).json({ message: "Can't delete publish course!" })
         }
-        let response = await prismaDb.course.delete({ where: { id: courseId as string, instructorId: user.id, course_status: "Draft" } })
+        let response = await prismaDb.course.delete({ where: { id: courseId, instructorId: user.id, course_status: "Draft" } })
         if (!response) {
             return res.status(400).json({ message: "Course delete failed!" })
         }
@@ -203,12 +201,13 @@ app.get("/instructor/:courseId/lesson", authMiddleware, async (req, res) => {
     try {
         let { courseId } = req.params;
         const user = (req as any).user;
-        if (user.role !== "Instructor") {
-            return res.status(401).json("Not authorize!")
+        if(user.role !== "Instructor"){
+            return res.status(401).json({message:"Not authorised!"})
         }
         if (!courseId) {
             return res.status(400).json({ message: "Field missing!" })
         }
+
         let response = await prismaDb.course.findMany({ where: { id: courseId as string, instructorId: user.id }, include: { lesson: true } });
         if (!response) {
             return res.status(404).json({ message: "not found!" })
@@ -225,9 +224,7 @@ app.post("/instructor/course/lesson", authMiddleware, async (req, res) => {
         const { courseId, content } = req.body;
         const user = (req as any).user;
         let response;
-        if (user.role !== "Instructor") {
-            return res.status(401).json({ message: "Not authorize!" })
-        }
+
         if (!courseId || !content) {
             return res.status(400).json({ message: "Field missing!" })
         }
@@ -253,15 +250,12 @@ app.post("/instructor/course/lesson", authMiddleware, async (req, res) => {
 
 })
 
-app.patch("/instructor/course/:lessonId/lesson/", authMiddleware, async (req, res) => {
+app.patch("/instructor/course/lesson/", authMiddleware, async (req, res) => {
     try {
-        const { lessonId } = req.params;
-        const { courseId, content } = req.body;
+        const { courseId, content, lessonId } = req.body;
         const user = (req as any).user;
         let response;
-        if (user.role !== "Instructor") {
-            return res.status(401).json({ message: "Not authorize!" })
-        }
+
         if (!courseId || !content || !lessonId) {
             return res.status(400).json({ message: "Field missing!" })
         }
@@ -269,12 +263,12 @@ app.patch("/instructor/course/:lessonId/lesson/", authMiddleware, async (req, re
         if (!iscourseExist) {
             return res.status(404).json({ message: "No course found!" })
         }
-        let islessonExist = await prismaDb.lesson.findFirst({ where: { id: lessonId as string, courseId } });
+        let islessonExist = await prismaDb.lesson.findFirst({ where: { id: lessonId, courseId } });
         if (!islessonExist) {
             return res.status(400).json({ message: "Not found!" })
         }
         if (iscourseExist && iscourseExist && iscourseExist.course_status === "Draft") {
-            response = await prismaDb.lesson.update({ where: { id: lessonId as string, courseId }, data: { content } });
+            response = await prismaDb.lesson.update({ where: { id: lessonId, courseId }, data: { content } });
         }
 
         if (!response) {
@@ -286,33 +280,31 @@ app.patch("/instructor/course/:lessonId/lesson/", authMiddleware, async (req, re
     }
 
 })
-app.delete("/instructor/:lessonId/lesson", authMiddleware, async (req, res) => {
+app.delete("/instructor/lesson", authMiddleware, async (req, res) => {
     try {
-        const { lessonId } = req.params;
-        const { courseId } = req.body;
+
+        const { courseId, lessonId } = req.body;
         const user = (req as any).user;
         let response;
-        if (user.role !== "Instructor") {
-            return res.status(401).json({ message: "Not authorize!" })
-        }
+
         if (!lessonId || !courseId) {
             return res.status(400).json({ message: "Field missing!" })
         }
-        let iscourseExist = await prismaDb.course.findFirst({where:{id:courseId,instructorId:user.id,course_status:"Draft"}});
-        if(iscourseExist?.course_status === "Publish"){
-            return res.status(409).json({message:"Can't delete publish course lesson!"})
+        let iscourseExist = await prismaDb.course.findFirst({ where: { id: courseId, instructorId: user.id, course_status: "Draft" } });
+        if (iscourseExist?.course_status === "Publish") {
+            return res.status(409).json({ message: "Can't delete publish course lesson!" })
         }
-        if(!iscourseExist){
-            return res.status(404).json({message:"No course found!"})
+        if (!iscourseExist) {
+            return res.status(404).json({ message: "No course found!" })
         }
         let islessonExist = await prismaDb.lesson.findFirst({ where: { id: lessonId as string, courseId } });
         if (!islessonExist) {
             return res.status(400).json({ message: "not found!" })
         }
-        if(iscourseExist && iscourseExist.course_status === "Draft" && islessonExist){
-            response = await prismaDb.lesson.delete({ where: { id: lessonId as string, courseId } });
+        if (iscourseExist && iscourseExist.course_status === "Draft" && islessonExist) {
+            response = await prismaDb.lesson.delete({ where: { id: lessonId, courseId } });
         }
-        
+
         if (!response) {
             return res.status(400).json({ message: "failed to delete!" })
         }
@@ -322,9 +314,5 @@ app.delete("/instructor/:lessonId/lesson", authMiddleware, async (req, res) => {
     }
 })
 
-//student end-points
-app.post("/student/:courseId/enroll",authMiddleware,async(req,res)=>{
-    //student allow to enroll publish courses and after that have access to lessons!
-})
 
 app.listen(3000)
