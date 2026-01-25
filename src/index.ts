@@ -25,7 +25,7 @@ app.post("/register", async (req, res) => {
             if (existingMail) {
                 return res.status(409).json({ message: "User exist!" })
             }
-            const hassPass = await bcrypt.hash(password, 3);
+            const hassPass = await bcrypt.hash(password,5 );
             if (!hassPass) {
                 return res.status(500).json({ message: "Service error!" })
             }
@@ -57,7 +57,7 @@ app.post("/login", async (req, res) => {
         if (role === "Instructor" || role === "Student") {
             let existingUser = await prismaDb.user.findFirst({ where: { email, role } });
             if (!existingUser) {
-                return res.status(40).json({ message: "Not found!" })
+                return res.status(400).json({ message: "Not found!" })
             }
             let isPassValid = await bcrypt.compare(password, existingUser?.password as string);
             if (!isPassValid) {
@@ -74,11 +74,11 @@ app.post("/login", async (req, res) => {
 })
 
 app.get("/auth/me", authMiddleware, (req, res) => {
-    const user = (req as any).user
+    const user = req.user
     return res.status(200).json({ user, message: "Verified user okay!" })
 })
 
-//instrcutor course end-points
+
 app.get("/instructor/course", authMiddleware, async (req, res) => {
     try {
         const user = req.user;
@@ -119,14 +119,14 @@ app.post("/instructor/course/draft", authMiddleware, async (req, res) => {
         }
         return res.status(200).json({ course, message: "course draft!" })
     } catch (e) {
-        return res.status(500).json({ message: "Serror error!" })
+        return res.status(500).json({ message: "Server error!" })
     }
 
 })
 app.post("/instructor/course/publish", authMiddleware, async (req, res) => {
     try {
         let user = req.user;
-        let courseId = req.body;
+        let {courseId} = req.body;
         let response;
         if (!user) {
             return res.status(401).json({ message: "Unauthorized!" })
@@ -204,7 +204,7 @@ app.delete("/instructor/course/", authMiddleware, async (req, res) => {
         }
         return res.status(200).json({ message: "Course deleted!" })
     } catch (e) {
-        return res.status(500).json({ messeg: "Server error!" })
+        return res.status(500).json({ message: "Server error!" })
     }
 
 })
@@ -347,7 +347,7 @@ app.post("/student/course/enroll", authMiddleware, async (req, res) => {
             return res.status(401).json({ message: "Unauthorized!" })
         }
         if (user.role !== "Student") {
-            return res.status(403).json({ message: "Not auhorised!" })
+            return res.status(403).json({ message: "Not authorized!" })
         }
         if (!courseId) {
             return res.status(400).json({ message: "Field missing!" })
@@ -383,7 +383,7 @@ app.get("/student/course/:courseId/lesson", authMiddleware, async (req, res) => 
         }
         const studentId = user.id;
         if (user.role !== "Student") {
-            return res.status(403).json({ message: "Not auhorised!" })
+            return res.status(403).json({ message: "Not authorized!" })
         }
         if (!courseId || !studentId) {
             return res.status(400).json({ message: "Field missing!" })
@@ -409,7 +409,7 @@ app.get("/student/course/:courseId/lesson", authMiddleware, async (req, res) => 
     }
 })
 
-app.post("/student/coures/lesson/progress", authMiddleware, async (req, res) => {
+app.post("/student/course/lesson/progress", authMiddleware, async (req, res) => {
     try {
         const { lessonId, courseId } = req.body;
         const user = req.user;
@@ -418,7 +418,7 @@ app.post("/student/coures/lesson/progress", authMiddleware, async (req, res) => 
             return res.status(401).json({ message: "Unathorized!" })
         }
         if (user.role !== "Student") {
-            return res.status(403).json({ message: "Not auhorised!" })
+            return res.status(403).json({ message: "Not authorized!" })
         }
         const studentId = user.id;
         if (!courseId || !studentId || !lessonId) {
