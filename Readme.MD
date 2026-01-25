@@ -1,6 +1,6 @@
 # Udemy (Backend MVP)
 
-A minimal backend implementation of a Udemy-like platform built for learning and clarity.
+A minimal backend implementation of a Udemy-like platform.
 
 This project focuses on role-based access, course ownership, and enrollment logic using a clean and practical backend design.
 
