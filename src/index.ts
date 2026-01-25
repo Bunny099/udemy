@@ -81,7 +81,10 @@ app.get("/auth/me", authMiddleware, (req, res) => {
 //instrcutor course end-points
 app.get("/instructor/course", authMiddleware, async (req, res) => {
     try {
-        const user = (req as any).user;
+        const user = req.user;
+        if (!user) {
+            return res.status(401).json({ message: "Unauthorized!" })
+        }
         if (user.role !== "Instructor") {
             return res.status(401).json({ message: "Not authorize!" })
         }
@@ -98,9 +101,12 @@ app.get("/instructor/course", authMiddleware, async (req, res) => {
 app.post("/instructor/course/draft", authMiddleware, async (req, res) => {
     try {
         const { name, status } = req.body;
-        const user = (req as any).user;
+        const user = req.user;
         let course;
 
+        if (!user) {
+            return res.status(401).json({ message: "Unauthorized!" })
+        }
         if (!name || !status) {
             return res.status(400).json({ message: "Can't create course!" })
         }
@@ -119,11 +125,14 @@ app.post("/instructor/course/draft", authMiddleware, async (req, res) => {
 })
 app.post("/instructor/course/publish", authMiddleware, async (req, res) => {
     try {
-        let user = (req as any).user;
+        let user = req.user;
         let courseId = req.body;
         let response;
+        if (!user) {
+            return res.status(401).json({ message: "Unauthorized!" })
+        }
 
-        if (!courseId ) {
+        if (!courseId) {
             return res.status(400).json({ message: "Field missing!" })
         }
 
@@ -152,8 +161,10 @@ app.patch("/instructor/course/", authMiddleware, async (req, res) => {
     try {
         const { courseId } = req.body;
         const { name } = req.body;
-        const user = (req as any).user;
-
+        const user = req.user;
+        if (!user) {
+            return res.status(401).json({ message: "Unauthorized!" })
+        }
         if (!courseId || !name) {
             return res.status(400).json({ message: "Field is missing!" })
         }
@@ -173,8 +184,10 @@ app.patch("/instructor/course/", authMiddleware, async (req, res) => {
 app.delete("/instructor/course/", authMiddleware, async (req, res) => {
     try {
         const { courseId } = req.body;
-        const user = (req as any).user;
-
+        const user = req.user;
+        if (!user) {
+            return res.status(401).json({ message: "Unauthorized!" })
+        }
         if (!courseId) {
             return res.status(400).json({ message: "Field missing!" })
         }
@@ -200,9 +213,12 @@ app.delete("/instructor/course/", authMiddleware, async (req, res) => {
 app.get("/instructor/:courseId/lesson", authMiddleware, async (req, res) => {
     try {
         let { courseId } = req.params;
-        const user = (req as any).user;
-        if(user.role !== "Instructor"){
-            return res.status(401).json({message:"Not authorised!"})
+        const user = req.user;
+        if (!user) {
+            return res.status(401).json({ message: "Unauthorized!" })
+        }
+        if (user.role !== "Instructor") {
+            return res.status(401).json({ message: "Not authorised!" })
         }
         if (!courseId) {
             return res.status(400).json({ message: "Field missing!" })
@@ -222,9 +238,11 @@ app.get("/instructor/:courseId/lesson", authMiddleware, async (req, res) => {
 app.post("/instructor/course/lesson", authMiddleware, async (req, res) => {
     try {
         const { courseId, content } = req.body;
-        const user = (req as any).user;
+        const user = req.user;
         let response;
-
+        if (!user) {
+            return res.status(401).json({ message: "Unauthorized!" })
+        }
         if (!courseId || !content) {
             return res.status(400).json({ message: "Field missing!" })
         }
@@ -253,9 +271,11 @@ app.post("/instructor/course/lesson", authMiddleware, async (req, res) => {
 app.patch("/instructor/course/lesson/", authMiddleware, async (req, res) => {
     try {
         const { courseId, content, lessonId } = req.body;
-        const user = (req as any).user;
+        const user = req.user;
         let response;
-
+        if (!user) {
+            return res.status(401).json({ message: "Unauthorized!" })
+        }
         if (!courseId || !content || !lessonId) {
             return res.status(400).json({ message: "Field missing!" })
         }
@@ -284,9 +304,11 @@ app.delete("/instructor/lesson", authMiddleware, async (req, res) => {
     try {
 
         const { courseId, lessonId } = req.body;
-        const user = (req as any).user;
+        const user = req.user;
         let response;
-
+        if (!user) {
+            return res.status(401).json({ message: "Unauthorized!" })
+        }
         if (!lessonId || !courseId) {
             return res.status(400).json({ message: "Field missing!" })
         }
@@ -319,8 +341,11 @@ app.post("/student/course/enroll", authMiddleware, async (req, res) => {
     //student allow to enroll publish courses and after that have access to lessons!
     try {
         const { courseId } = req.body;
-        const user = (req as any).user;
+        const user = req.user;
         let response;
+        if (!user) {
+            return res.status(401).json({ message: "Unauthorized!" })
+        }
         if (user.role !== "Student") {
             return res.status(403).json({ message: "Not auhorised!" })
         }
@@ -351,9 +376,12 @@ app.post("/student/course/enroll", authMiddleware, async (req, res) => {
 app.get("/student/course/:courseId/lesson", authMiddleware, async (req, res) => {
     try {
         const { courseId, } = req.params;
-        const user = (req as any).user;
-        const studentId = user.id;
+        const user = req.user;
         let response;
+        if (!user) {
+            return res.status(401).json({ message: "Unauthorized!" })
+        }
+        const studentId = user.id;
         if (user.role !== "Student") {
             return res.status(403).json({ message: "Not auhorised!" })
         }
@@ -384,12 +412,15 @@ app.get("/student/course/:courseId/lesson", authMiddleware, async (req, res) => 
 app.post("/student/coures/lesson/progress", authMiddleware, async (req, res) => {
     try {
         const { lessonId, courseId } = req.body;
-        const user = (req as any).user;
-        const studentId = user.id;
+        const user = req.user;
         let response;
+        if (!user) {
+            return res.status(401).json({ message: "Unathorized!" })
+        }
         if (user.role !== "Student") {
             return res.status(403).json({ message: "Not auhorised!" })
         }
+        const studentId = user.id;
         if (!courseId || !studentId || !lessonId) {
             return res.status(400).json({ message: "Field missing!" })
         }
