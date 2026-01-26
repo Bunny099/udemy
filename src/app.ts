@@ -1,4 +1,15 @@
 
-import app from "./index.js"
+import express from "express";
+import cors from "cors"
+import authRoutes from "./routes/auth.route.js"
+import instructorRoute from "./routes/instructor.route.js"
+import studentRoute from "./routes/student.route.js"
+const app = express();
 
-app.listen(3000, () => console.log("Port is running on port:3000"))
+app.use(cors())
+app.use(express.json())
+app.use("/auth", authRoutes)
+app.use("/instructor",instructorRoute)
+app.use("/student",studentRoute)
+
+export default app;
