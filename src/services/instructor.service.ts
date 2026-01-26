@@ -32,6 +32,41 @@ interface DeleteCourseData {
     },
     courseId: string
 }
+interface LessonData{
+    user:{
+        id:string,
+        role:role
+    },
+    courseId: string | string[],
+    
+}
+
+interface CreateLessonData{
+    user:{
+        id:string,
+        role:role
+    },
+   courseId:string
+    content:string
+}
+
+interface UpdateLessonData{
+    user:{
+        id:string,
+        role:role
+    },
+    courseId:string,
+    lessonId:string,
+    content:string
+}
+interface DeleteLessonData{
+    user:{
+        id:string,
+        role:role
+    },
+    courseId:string,
+    lessonId:string
+}
 export const fetchCourse = async (user: User) => {
     const id = user.id;
     if (user.role !== "Instructor") {
@@ -97,6 +132,80 @@ export const deleteCourseService = async (data: DeleteCourseData) => {
     let response = await prismaDb.course.delete({ where: { id: courseId, instructorId: user.id } });
     if (!response) {
         throw new Error("Failed to delete course")
+    }
+    return response;
+}
+
+export const fetchLesson = async(data:LessonData)=>{
+    const {courseId,user} = data;
+    if(user.role !== "Instructor"){
+        throw new Error("Not authorized")
+    }
+    let response = await prismaDb.course.findFirst({where:{id:courseId as string,instructorId:user.id},include:{lesson:true}});
+    if(!response){
+        throw new Error("No lesson found!")
+    }
+    return response;
+}
+
+export const createLesson = async(data:CreateLessonData)=>{
+    const {user,content,courseId} = data;
+    let response;
+    const iscourseExist = await prismaDb.course.findFirst({where:{id:courseId as string,instructorId:user.id,course_status:"Draft"}});
+    if(!iscourseExist){
+        throw new Error("Course not found!")
+    }
+    if(iscourseExist && iscourseExist.course_status ==="Draft"){
+        response  = await prismaDb.lesson.create({data:{courseId,content}})
+    }
+    if(!response){
+        throw new Error("Failed to add lesson!")
+    }
+    return response;
+}
+
+export const updateLesson = async(data:UpdateLessonData)=>{
+    const {courseId,lessonId,content,user} = data;
+    let response;
+    const iscourseExist = await prismaDb.course.findFirst({where:{id:courseId,instructorId:user.id,course_status:"Draft"}});
+    if(!iscourseExist){
+        throw new Error("Course not found!")
+    }
+    const islessonExist = await prismaDb.lesson.findFirst({where:{courseId,id:lessonId}});
+    if(!islessonExist){
+        throw new Error("Lesson not found!")
+    }
+    if(iscourseExist && islessonExist && iscourseExist.course_status ==="Draft"){
+        response = await prismaDb.lesson.update({where:{id:lessonId,courseId},data:{content}})
+    }
+    if(!response){
+        throw new Error("Failed to update lesson!")
+    }
+    return response;
+}
+
+export const funDeleteLesson = async(data:DeleteLessonData)=>{
+    const {courseId,lessonId,user} = data;
+    let response;
+    if(user.role !== "Instructor"){
+        throw new Error("Unauthorized!")
+    } 
+    const iscourseExist = await prismaDb.course.findFirst({where:{id:courseId,instructorId:user.id}});
+    if(!iscourseExist){
+        throw new Error("Course not found!")
+    }
+    if(iscourseExist.course_status ==="Publish"){
+        throw new Error("Can't delete publish course lesson!")
+    }
+    const islessonExist = await prismaDb.lesson.findFirst({where:{id:lessonId,courseId}});
+    if(!islessonExist){
+        throw new Error("Lesson not found!")
+    }
+    if(iscourseExist && iscourseExist.course_status==="Draft" && islessonExist){
+        response = await prismaDb.lesson.delete({where:{id:lessonId,courseId}})
+    }
+    if(!response){
+        throw new Error("Failed to delete lesson!")
     }
     return response;
 }
