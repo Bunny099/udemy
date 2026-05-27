@@ -1,6 +1,6 @@
-# Udemy (Backend MVP)
+# CourseHub (Backend MVP)
 
-A minimal backend implementation of a Udemy-like platform.
+A minimal backend implementation of a CourseHub platform.
 
 This project focuses on role-based access, course ownership, and enrollment logic using a clean and practical backend design.
 
